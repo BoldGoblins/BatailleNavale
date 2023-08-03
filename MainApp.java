@@ -1,36 +1,37 @@
-import BoldGoblins.Utilitaires.BGYesNoQReturn;
 import GameSystem.AI_Controller;
 import GameSystem.Director;
 import GameSystem.GameState;
 import Scenes.Map;
 
-import Debug.GeneralDebugger;
-import Enums.EPlayer;
-
 public class MainApp 
 {
     public static void main(String[] args)
     {
-        GameState GS = new GameState("Napoléon", "Kim-Jung-Un");
+        do
+        {
+            GameState GS = new GameState("Napoléon", "Kim-Jung-Un");
 
-        Map map = new Map("Grid01");
+            Map map = new Map("Grid01");
 
-        AI_Controller aic = new AI_Controller();
+            AI_Controller aic = new AI_Controller();
 
-        Director.placePlayerShips(GS, map);
+            Director.renderScene("image");
+            Director.renderScene("title");
+            Director.renderScene("logo");
 
-        // GeneralDebugger.autoPlaceShip(EPlayer.Player1, GS);
+            Director.placePlayerShips(GS, map);
 
-        Director.placeAIShips(GS, aic, map);
+            // GeneralDebugger.autoPlaceShip(EPlayer.Player1, GS);
 
-        Director.gameLoop(GS, aic, map);
+            Director.placeAIShips(GS, aic);
+
+            Director.gameLoop(GS, aic, map);
+
+        } while (Director.playAgain());
 
     }
 }
 
-// Polish :
-// -> Améliorations/optimisation de certaines fonctions (AI_Controller).
-// -> Amélioration de l'IA : prendre en compte la taille des bateaux dans randomSelectionAlongLastPos().
-// -> Menu avec possibilité de rejouer.
-// -> Ajout de scènes (Victoire/Défaite, sélection personnage ?, couler un navire, ...).
+// Améliorations :
+// -> Placement des Ships par l'IA : stratégie et non plus de l'aléatoire ?
 // -> Menu général avec choix de la map et du personnage ?

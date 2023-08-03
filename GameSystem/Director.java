@@ -1,17 +1,14 @@
 package GameSystem;
+
 import BoldGoblins.Exceptions.*;
 import BoldGoblins.Utilitaires.BGRandomiser;
 import BoldGoblins.Utilitaires.BGYesNoQReturn;
 import Enums.ECellState;
 import Enums.EPlayer;
 import Scenes.Scene;
-import Actors.Player;
 import Actors.Ship;
 import Actors.Cell;
-import GameSystem.PlayerController;
-import GameSystem.GameMode;
-import GameSystem.GameState;
-import GameSystem.AI_Controller;
+import Actors.Player;
 import Scenes.Map;
 
 public class Director 
@@ -74,9 +71,8 @@ public class Director
             }
         }
     }
-
-    // Map en paramètre juste pour le DEBUG
-    public static void placeAIShips(GameState Gs, AI_Controller aic, Map map)
+    
+    public static void placeAIShips(GameState Gs, AI_Controller aic)
     {
         Gs.flipCurrentPlayer();
 
@@ -92,21 +88,18 @@ public class Director
 
     public static void gameLoop(GameState Gs, AI_Controller aic, Map map)
     {
-       // PlayerController.screenClearer();
         Gs.setFirstPlayer(BGRandomiser.getRandomBool());
 
         do
         {
-            boolean bHit = false;
-            
+            Gs.flipCurrentPlayer();
             fleetStateDisplay(Gs);
 
             if (GameState.getCurrentPlayer() == EPlayer.Player2)
             {
                 int hitIndex = aic.playMove(Gs);
                 int adverseFleetCount = Gs.getPlayer(EPlayer.Player1).getFleetCount();
-
-                bHit = shootCell(Gs, EPlayer.Player2, EPlayer.Player1, hitIndex);
+                boolean bHit = shootCell(Gs, EPlayer.Player2, EPlayer.Player1, hitIndex);
 
                 aic.lastHitInfos(hitIndex, bHit, adverseFleetCount == Gs.getPlayer(EPlayer.Player1).getFleetCount());
 
@@ -131,21 +124,45 @@ public class Director
                         continue;
                     }
 
-                    bHit = shootCell(Gs, EPlayer.Player1, EPlayer.Player2, index);
+                    shootCell(Gs, EPlayer.Player1, EPlayer.Player2, index);
                     renderMap(map, EPlayer.Player2);
                     break;                  
                 }
             }
 
-            if (!bHit)
-                Gs.flipCurrentPlayer();
-
         } while (!Gs.getPlayer(EPlayer.Player1).hasLoose() && !Gs.getPlayer(EPlayer.Player2).hasLoose());
+
+        if (GameState.getCurrentPlayer() == EPlayer.Player1)
+            renderScene("victory");
+        else
+            renderScene("loose");
 
         // CurrentPlayer -> celui qui jouait lorsque l'autre joueur a perdu, c'est donc le gagnant.
         String winnerName = Gs.getPlayer(GameState.getCurrentPlayer()).mName;
 
         System.out.println("Victoire de : " + winnerName + " !");
+        
+        // stats :
+        Player p = Gs.getPlayer(EPlayer.Player1);
+
+        System.out.println("Précision de " + p.mName + " : " + p.getPrecision());
+
+        p = Gs.getPlayer(EPlayer.Player2);
+
+        System.out.println("Précision de " + p.mName + " : " + p.getPrecision());
+    }
+
+    public static boolean playAgain()
+    {
+        while (true)
+        {
+            BGYesNoQReturn choice = PlayerController.yesOrNoInput("Voulez-vous rejouer ? (y/n)");
+
+            if (choice.mbValidAnswer)
+                return choice.mbYes;
+
+        }
+
     }
 
     // Gère Cell.setBombed(), Player.shoot(), Ship.hit()
@@ -176,6 +193,7 @@ public class Director
                 System.out.println(name + " a touché le navire : " + ship.getName());
             else
             {
+                renderScene("shipsunk");
                 gs.getPlayer(target).shipSunk(ship.getHashCode());
                 System.out.println(name + " a détruit le navire : " + ship.getName());
             }
@@ -215,8 +233,17 @@ public class Director
         }
     }
 
-    public static void renderScene(Scene scene)
+    public static void renderScene(String SceneName)
     {
+        Scene sc = new Scene(SceneName);
 
+        try 
+        {
+            sc.display();
+        }
+        catch(SceneExcept exp)
+        {
+            return;
+        }
     }
 }

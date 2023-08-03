@@ -3,7 +3,6 @@ package Actors;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import Actors.Ship;
 
 public class Player 
 {
@@ -56,6 +55,11 @@ public class Player
     public Collection <Ship> getFleet()
     {
         return fleet.values();
+    }
+
+    public float getPrecision()
+    {
+        return (float) this.m_Shoots / (float) this.m_Points;
     }
 
     public String mName;

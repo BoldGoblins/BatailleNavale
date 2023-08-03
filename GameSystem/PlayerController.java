@@ -7,9 +7,6 @@ import java.lang.NumberFormatException;
 
 import BoldGoblins.Exceptions.PlayerControllerExcept;
 import BoldGoblins.Utilitaires.BGYesNoQReturn;
-import Enums.ECellState;
-import Actors.Cell;
-import Actors.Player;
 
 public class PlayerController
 {

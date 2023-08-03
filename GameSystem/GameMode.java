@@ -2,8 +2,10 @@ package GameSystem;
 
 import java.lang.NumberFormatException;
 import java.util.ArrayList;
+
 import Actors.Ship;
 import Enums.EPlayer;
+import BoldGoblins.Exceptions.GameModeExcept;
 
 public class GameMode 
 {
@@ -11,21 +13,30 @@ public class GameMode
     {
         ArrayList <Ship> temp = new ArrayList <Ship> (5);
 
-        if (player == EPlayer.Player1)
+        try
         {
-            temp.add(new Ship("Le téméraire", 5));
-            temp.add(new Ship("Le robuste", 4));
-            temp.add(new Ship("Le gracieux", 3));
-            temp.add(new Ship("Le fourbe", 3));
-            temp.add(new Ship("L'audacieux", 2));
+            if (player == EPlayer.Player1)
+            {
+                temp.add(new Ship("Porte-avion \"Le téméraire\"", 5));
+                temp.add(new Ship("Cuirassé \"Le robuste\"", 4));
+                temp.add(new Ship("Frégate \"Le gracieux\"", 3));
+                temp.add(new Ship("Sous-marin \"Le fourbe\"", 3));
+                temp.add(new Ship("Torpilleur \"L'audacieux\"", 2));
+            }
+            else
+            {
+                temp.add(new Ship("Porte-avion \"Pyongyong\"", 5));
+                temp.add(new Ship("Cuirassé \"Maki-Sashimi\"", 4));
+                temp.add(new Ship("Frégate \"Bond-our\"", 3));
+                temp.add(new Ship("Sous-marin \"Ling-Ying-Ding-Dong\"", 3));
+                temp.add(new Ship("Torpilleur \"Nhem\"", 2));
+            }
         }
-        else
+        catch(GameModeExcept expt)
         {
-            temp.add(new Ship("Pyongyong", 5));
-            temp.add(new Ship("Maki-Sashimi", 4));
-            temp.add(new Ship("Bond-our", 3));
-            temp.add(new Ship("Ling-Ying-Ding-Dong", 3));
-            temp.add(new Ship("Nhem", 2));
+            // Tentative d'utiliser un Ship de taille 0.
+            System.err.println(expt.getMessage());
+            System.exit(-1);
         }
 
         return temp;

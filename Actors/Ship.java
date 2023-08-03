@@ -1,9 +1,15 @@
 package Actors;
 
+import BoldGoblins.Exceptions.GameModeExcept;
+
 public class Ship 
 {
+    // Throw GameModeExcept si length <= 0
     public Ship(String name, int length)
     {
+        if (length <= 0)
+            throw new GameModeExcept("Error in Ship Constructor : length <= 0.");
+            
         m_Name = name;
         m_Length = length;
     }

@@ -3,7 +3,6 @@ package GameSystem;
 import Actors.Cell;
 import Actors.Player;
 import Actors.Ship;
-import BoldGoblins.Exceptions.GameModeExcept;
 import Enums.ECellState;
 import Enums.EPlayer;
 
@@ -39,12 +38,12 @@ public class GameState
         if (ship.getLength() == 1)
             return;
 
-        if (parse(ship, index, false))
+        if (parse(ship, EPlayer.Player1, index))
             return;
         
         // Si 1er tentative ne fonctionne pas, vérifier qu'on a pas déjà testé toutes les rotations possibles (sauf dernière possibilité qui a échouée).
         resetDirRotaShip();
-        parse(ship, index, false);
+        parse(ship, EPlayer.Player1, index);
     }
 
     // Shuffler les directions
@@ -52,31 +51,35 @@ public class GameState
     {   
         resetDirRotaShip();
 
-        boolean bIsAi = false;
-
         if (player == EPlayer.Player2)
-        {
             Collections.shuffle(m_DirRotaShip);
-            bIsAi = true;
-        }
 
-        return parse(ship, index, bIsAi);
+        return parse(ship, player, index);
     }
 
-    private boolean parse(Ship ship, int index, boolean bIsAi)
+    private boolean parse(Ship ship, EPlayer player, int index)
     {
         ArrayList <Integer> slots = new ArrayList <Integer> (ship.getLength());
 
-        EPlayer player = EPlayer.Player1;
-
-        if  (bIsAi)
-            player = EPlayer.Player2;
-
         for(int i = 0; i < 4; ++i)
         {
+            int dir = m_DirRotaShip.get(i);
+
+            if (dir == 0)
+                continue;
+
+            int maxIndex = index + dir * (ship.getLength() - 1);
+
+            if (maxIndex > 99 || maxIndex < 0)
+                continue;
+
+            // plus sur la même ligne.
+            if ((dir == -1 || dir == 1) && (maxIndex / 10 != index / 10))
+                continue;
+            
             if (findContiguousCells(slots, ship.getLength(), ship.getHashCode(), index, m_DirRotaShip.get(i)))
             {
-                if (!bIsAi)
+                if (player == EPlayer.Player1)
                 {
                     removeShipFromHash(ship.getHashCode());
                     m_DirRotaShip.set(i, 0);
@@ -87,50 +90,30 @@ public class GameState
             }
 
             // Possible ou pas possible, rotation déjà testée, sera réinitialisée si tout == 0.
-            if (!bIsAi)
+            if (player == EPlayer.Player1)
                 m_DirRotaShip.set(i, 0);
         }
         
         return false;
     }
 
-    // direction could be -1, +1, -10 or + 10 (left, right, down or up)
-    // function used only for translation, rotation will be handled in another one
-    private boolean findContiguousCells(ArrayList <Integer> slots, int length, int shipHash, int index, int direction)
+    private boolean findContiguousCells(ArrayList <Integer> slots, int countLength, int shipHash, int index, int direction)
     {
-        // System.err.println("Call : length = " + length + " Index = " + index + " Direction : " + direction);
-        if (direction == 0)
-            return false;
-
-        if (length == 0)
+        if (countLength == 0)
             return true;
 
-        if (index < 0 || index > 99)
+        Cell cell = getPlayerMap(m_CurrentPlayer).get(index);
+
+        if (cell.getCellState() == ECellState.Filled && cell.getShipHash() != shipHash)
             return false;
 
-        // length - 1 parce qu'on calcule avec les index de 0 à 99 et length va de 1 à 10. 
-        if ( ((index - (length - 1) * 10 < 0) && direction == -10) || ((index + (length - 1) * 10 > 99) && direction == 10) )
-            return false;
-
-        if ( ((length > (index % 10 + 1)) && direction == -1) || ((length > 10 - index % 10) && direction == 1) )
-            return false;
-        
-        try
+        if (cell.getCellState() == ECellState.Empty || cell.getShipHash() == shipHash)
         {
-            if ( (getPlayerMap(m_CurrentPlayer).get(index).getCellState() == ECellState.Filled) && (getPlayerMap(m_CurrentPlayer).get(index).getShipHash() != shipHash) )
-                return false;
-
-            if ( (getPlayerMap(m_CurrentPlayer).get(index).getCellState() == ECellState.Empty) || (getPlayerMap(m_CurrentPlayer).get(index).getShipHash() == shipHash) ) 
-                if (findContiguousCells(slots, length - 1, shipHash, index + direction, direction))
-                {
-                    slots.add(index);
-                    return true;
-                }
-        }
-        catch(IndexOutOfBoundsException e)
-        {
-            System.err.println("Out of Bounds in GameState.findContiguousCells()");
-            return false;
+            if (findContiguousCells(slots, countLength - 1, shipHash, index + direction, direction))
+            {
+                slots.add(index);
+                return true;
+            }
         }
 
         return false; 
@@ -141,11 +124,7 @@ public class GameState
         for (Cell c : m_MapPlayer1)
         {
             if (c.getShipHash() == shipHash)
-            {
-                // System.err.println("Remove : " + c.getShipHash());
                 c.removeShip();
-                // System.err.println("After : " + c.getShipHash());
-            }
         }
     }
 
@@ -155,10 +134,7 @@ public class GameState
         {
             for(int index : slots)
             {
-                if (player == EPlayer.Player1)
-                    m_MapPlayer1.get(index).addShip(shipHash);
-                else
-                    m_MapPlayer2.get(index).addShip(shipHash);
+                getPlayerMap(player).get(index).addShip(shipHash);
             }
         }
         catch (IndexOutOfBoundsException ex)
@@ -200,12 +176,10 @@ public class GameState
 
     public static ArrayList <Cell> getPlayerMap(EPlayer player)
     {
-        switch(player)
-        {
-        case Player1 : return m_MapPlayer1;
-        case Player2 : return m_MapPlayer2;
-        default : return m_MapPlayer1;
-        }
+        if (player == EPlayer.Player1)
+            return m_MapPlayer1;
+        else
+            return m_MapPlayer2;
     }
 
     public Player getPlayer(EPlayer player)
@@ -216,7 +190,6 @@ public class GameState
             return this.player2;
     }
 
-    // tout peut être static ...
     private Player player1;
     private Player player2;
 

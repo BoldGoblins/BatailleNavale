@@ -1,14 +1,14 @@
 package GameSystem;
 
 import Actors.Ship;
-import Actors.Cell;
 import Enums.EPlayer;
 import Enums.ECellState;
 import BoldGoblins.Exceptions.AI_ControllerExcept;
 import BoldGoblins.Utilitaires.BGRandomiser;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 
 
 
@@ -17,32 +17,33 @@ public class AI_Controller
     public int playMove(GameState gs)
     {
         // Un Ship déjà touché est encore vivant
-        if (this.lastContiguousSuccessHit.size() > 0)
+        if (boundsAreInit())
         {
-            if (this.lastContiguousSuccessHit.size() > 1)
+            if (!onlyOneShot())
             {
-                // toujours > 0 car tableau trié par ordre croissant.
-                int dir = this.lastContiguousSuccessHit.get(1) - this.lastContiguousSuccessHit.get(0);
+                int dir = getTargetDirection();
 
-                int frontIndex = this.lastContiguousSuccessHit.get(0) - dir;
-                int endIndex = this.lastContiguousSuccessHit.get(this.lastContiguousSuccessHit.size() - 1) + dir;
+                int frontIndex = this.lastSuccessHitsMin - dir;
+                int endIndex = this.lastSuccessHitsMax + dir;
 
                 boolean bFrontValid = false;
                 boolean bEndValid = false;
 
-                if (frontIndex >= 0)
+                if (frontIndex >= 0 && frontIndex / 10 == this.lastSuccessHitsMin / 10)
                 {
                     if (GameState.getPlayerMap(EPlayer.Player1).get(frontIndex).getCellState() != ECellState.Bombed)
-                        bFrontValid = true;                  
-                }
-
-                if (endIndex < 100)
+                        bFrontValid = true;  
+                }                
+                if (endIndex < 100 && endIndex / 10 == this.lastSuccessHitsMax / 10)
                 {
                     if (GameState.getPlayerMap(EPlayer.Player1).get(endIndex).getCellState() != ECellState.Bombed)
                         bEndValid = true;
-                }
+                } 
 
-                // pas encore testé un des deux (et les deux sont possibles).
+                // DEBUG
+                // System.err.println("Ship Query : from " + frontIndex + " to " + endIndex);
+
+                // pas encore testé (bombé) un des deux (et les deux sont possibles).
                 if (bFrontValid && bEndValid)
                 {
                     if (BGRandomiser.getRandomBool())
@@ -57,8 +58,11 @@ public class AI_Controller
                 else
                     return endIndex;
             }
-            else
-                return randomSelectionAlongLastPos(this.lastContiguousSuccessHit.get(0));
+
+            // 1 seul coup donc (min = max).
+            int shipHash = GameState.getPlayerMap(EPlayer.Player1).get(this.lastSuccessHitsMin).getShipHash();
+
+            return randomSelectionAlongLastPos(this.lastSuccessHitsMin, gs.getPlayer(EPlayer.Player1).getShip(shipHash).getLength());
         }
 
         int indexToHit = queryAdverseMap();
@@ -91,53 +95,80 @@ public class AI_Controller
         if (bSuccess)
         {
             if (shipStillAlive)
-            {
-                this.lastContiguousSuccessHit.add(index);
+                saveLastSuccessPos(index);
 
-                Collections.sort(this.lastContiguousSuccessHit);
-            }
             else
-                this.lastContiguousSuccessHit.clear();
+            {
+                if (this.oldSuccessfulHits.size() > 0)
+                {
+                    this.lastSuccessHitsMin = (int) this.oldSuccessfulHits.keySet().toArray()[0];
+                    this.lastSuccessHitsMax = (int) this.oldSuccessfulHits.get(this.lastSuccessHitsMin);
+
+                    this.oldSuccessfulHits.remove(this.lastSuccessHitsMin);
+
+                    // DEBUG : 
+                    // System.err.println("Query OldHit : " + this.lastSuccessHitsMin + " min  et max : " + this.lastSuccessHitsMax);
+                }
+                else
+                    resetBounds();
+            }             
         }        
     }
 
     // Ne doit être appelé que si le Ship qui a déjà été touché est encore .alive()
-    private int randomSelectionAlongLastPos(int lastSuccessHit)
+    // Le Ship n'a été touché qu'une seule fois ! On a donc pas encore idée de sa direction à ce stade.
+    // shipLength ne peut être == 0.
+    // La longueur du Ship >= 2. Si elle valait 1, alors le Ship !.alive() au moment de l'appel de cette fonction.
+    private int randomSelectionAlongLastPos(int lastSuccessHit, int shipLength)
     {
-        ArrayList <Integer> directions = new ArrayList <Integer> (4);
+        HashMap <Integer, Float> directions = new HashMap <Integer, Float> (4);
 
-        directions.add(1);
-        directions.add(-1);
-        directions.add(10);
-        directions.add(-10);
+        directions.put(1, 0.00f);
+        directions.put(-1, 0.00f);
+        directions.put(10, 0.00f);
+        directions.put(-10, 0.00f);
 
-        Collections.shuffle(directions);
-
-        for(int dir : directions)
+        for(int dir : directions.keySet())
         {
-            if (lastSuccessHit + dir < 0 || lastSuccessHit + dir >= 100)
-                continue;
+            int temp = lastSuccessHit;
+            int countCell = 0;
 
-            if (lastSuccessHit % 10 == 9 && dir == 1)
-                continue;
-            
-            if (lastSuccessHit % 10 == 0 && dir == -1)
-                continue;
+            while(temp + dir >= 0 && temp + dir < 100)
+            {
+                temp += dir;
 
-            Cell cell = GameState.getPlayerMap(EPlayer.Player1).get(lastSuccessHit + dir);
+                // plus sur la même ligne.
+                if ((dir == -1 || dir == 1) && (temp / 10 != lastSuccessHit / 10))
+                    break;
 
-            // MODIFICATION A FAIRE ICI POUR PRENDRE EN COMPTE LA TAILLE DES BATEAUX.
-            if (cell.getCellState() != ECellState.Bombed)
-                return lastSuccessHit + dir;
+                if (GameState.getPlayerMap(EPlayer.Player1).get(temp).getCellState() == ECellState.Bombed)
+                    break;
+
+                ++countCell;
+            }
+
+            directions.replace(dir, Float.valueOf((float) countCell / (float) shipLength));
         }
 
-        return 0;
+        Iterator <Integer> itDir = directions.keySet().iterator();
+        Integer bestDir = itDir.next();
+
+        // /!\ On commence à it + 1.
+        while (itDir.hasNext())
+        {
+            Integer nextDir = itDir.next();
+            
+            if (directions.get(nextDir) > directions.get(bestDir))
+                bestDir = nextDir;
+        }
+
+        // DEBUG : 
+        // System.err.println("Single Pos Query : " + lastSuccessHit + " Direction :  " + bestDir + " Score : " + directions.get(bestDir));
+        return lastSuccessHit + bestDir;
     }
 
     private int queryAdverseMap()
     {
-        // ArrayList <Integer> idTable = new ArrayList <Integer> (10);
-
         this.targetQueryIndex.clear();
 
         for(int i = 0; i < 10; ++i)
@@ -149,15 +180,18 @@ public class AI_Controller
             parseMap(i, 10);
         }
 
-        int idArrTarget = (this.targetQueryIndex.size() - 1) / 2;
+        // size 10 -> index 5, size 1 -> index 0
+        int idArrTarget = this.targetQueryIndex.size() / 2;
+        // max 3, min 0.
+        int randBound = this.targetQueryIndex.size() / 3;
+        int secureCount = 5000;
 
-        // sécuriser la fonction pour éviter boucle infinie
-        while(true)
+        while(--secureCount > 0)
         {
             if (BGRandomiser.getRandomBool())
-                idArrTarget += BGRandomiser.getRandomInt(3);
+                idArrTarget += BGRandomiser.getRandomInt(randBound);
             else
-                idArrTarget -= BGRandomiser.getRandomInt(3);
+                idArrTarget -= BGRandomiser.getRandomInt(randBound);
 
             if (idArrTarget >= 0 && idArrTarget < this.targetQueryIndex.size())
             {
@@ -168,6 +202,12 @@ public class AI_Controller
             }
         }
 
+        if (secureCount <= 0)
+            return 0;
+
+        // DEBUG : 
+        // System.err.println("QueryMap : " + this.targetQueryIndex.get(idArrTarget));
+
         return this.targetQueryIndex.get(idArrTarget);
     }
 
@@ -177,8 +217,6 @@ public class AI_Controller
         ArrayList <Integer> temp = new ArrayList <Integer> (10);
 
         int idMax = indexStart + (direction * 10);
-
-        // System.err.println("Index tested : " + indexStart + " direction : " + direction);
 
         for(int i = indexStart; i < idMax; i += direction)
         {
@@ -200,8 +238,67 @@ public class AI_Controller
         }
     }
 
-    // utiliser deux integer (min et max) à la place de tout un tableau.
-    private ArrayList <Integer> lastContiguousSuccessHit = new ArrayList <Integer> (10);
+    private void saveLastSuccessPos(int index)
+    {
+        int newShipHash = GameState.getPlayerMap(EPlayer.Player1).get(index).getShipHash();
 
+        if (!boundsAreInit())
+        {
+            this.lastSuccessHitsMin = index;
+            this.lastSuccessHitsMax = index;
+        }
+        // check l'index Min arbitrairement : les deux index ont été initialisés ensemble et pointent obligatoirement sur une case avec le même Ship.
+        else if (GameState.getPlayerMap(EPlayer.Player1).get(this.lastSuccessHitsMin).getShipHash() == newShipHash)
+        {
+            if (index > this.lastSuccessHitsMax)
+                this.lastSuccessHitsMax = index;
+
+            else if (index < this.lastSuccessHitsMin)
+                this.lastSuccessHitsMin = index;
+        }
+        else
+        {
+            this.oldSuccessfulHits.put(this.lastSuccessHitsMin, this.lastSuccessHitsMax);
+
+            this.lastSuccessHitsMin = index;
+            this.lastSuccessHitsMax = index;
+        }
+    }
+
+    private void resetBounds()
+    {
+        this.lastSuccessHitsMin = -1;
+        this.lastSuccessHitsMax = 100;
+    }
+
+    private boolean boundsAreInit()
+    {
+        return this.lastSuccessHitsMin != -1 && this.lastSuccessHitsMax != 100;
+    }
+
+    // return false si non init
+    private boolean onlyOneShot()
+    {
+        return this.lastSuccessHitsMin == this.lastSuccessHitsMax;
+    }
+
+    private int getTargetDirection()
+    {
+        if (this.lastSuccessHitsMax - this.lastSuccessHitsMin < 10)
+            return 1;
+        else
+            return 10;
+    }
+
+
+    // -1 et 100 -> no-value; si init, les deux index pointent vers une case qui a le même shipHash forcément.
+    private int lastSuccessHitsMin = -1;
+    private int lastSuccessHitsMax = 100;
+
+    // initialCapacity = 5 car possible uniquement d'avoir touché une ou plusieurs fois chaque Ship.
+    // Map <indexMin, indexMax>
+    private HashMap <Integer, Integer> oldSuccessfulHits = new HashMap <Integer, Integer> (5);
+
+    // utilisé par la fonction queryAdverseMap() et parseMap().
     private ArrayList <Integer> targetQueryIndex = new ArrayList <Integer> (10);
 }

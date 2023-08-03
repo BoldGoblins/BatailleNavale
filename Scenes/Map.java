@@ -1,8 +1,6 @@
 package Scenes;
-// import java.lang.IndexOutOfBoundsException;
+
 import java.util.ArrayList;
-import java.util.ListIterator;
-import java.util.Iterator;
 import java.lang.IndexOutOfBoundsException;
 
 import BoldGoblins.Utilitaires.BGTextFilesReader;
@@ -10,9 +8,7 @@ import Enums.ECellState;
 import Enums.EPlayer;
 import GameSystem.GameState;
 import BoldGoblins.Exceptions.UninitializedMap;
-
 import Actors.Cell;
-import Actors.Ship;
 
 public class Map
 {
@@ -78,10 +74,6 @@ public class Map
         }
 
         System.out.println(m_Map.get(31).toString());
-
-        // 1 + (i * 3) + 1 (ou 2)
-        // 2 + j * 5 (+4)
-
     }
 
     private ArrayList <StringBuilder> m_Map = new ArrayList <StringBuilder> (1 + (2 * 10) + 11);
